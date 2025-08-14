@@ -14,9 +14,9 @@ function App() {
   // Configuration State
   const [config, setConfig] = useState({
     bearerToken: '',
-    apiUrl: 'https://app-staging.plant-for-the-planet.org/treemapper/interventions',
-    tenantKey: 'ten_NxJq55pm',
-    plantProject: 'proj_eKBbIt7Bzavu9o7xzCAqjS2t'
+    apiUrl: '',
+    tenantKey:'',
+    plantProject:'',
   });
 
   // File State
@@ -24,7 +24,7 @@ function App() {
   const [locationFolder, setLocationFolder] = useState(null);
   const [geojsonFiles, setGeojsonFiles] = useState(new Map());
   const [interventions, setInterventions] = useState([]);
-  
+
   // UI State
   const [currentStep, setCurrentStep] = useState('config'); // config, data, upload, results
   const [isUploading, setIsUploading] = useState(false);
@@ -35,7 +35,7 @@ function App() {
   const handleLocationFolderSelect = useCallback(async (event) => {
     const files = Array.from(event.target.files);
     const geojsonFileMap = new Map();
-    
+
     // Process all selected files
     for (const file of files) {
       if (file.name.endsWith('.geojson') || file.name.endsWith('.json')) {
@@ -56,10 +56,10 @@ function App() {
         }
       }
     }
-    
+
     setGeojsonFiles(geojsonFileMap);
     setLocationFolder(files.length > 0 ? files[0].webkitRelativePath.split('/')[0] : null);
-    
+
     // Update interventions if they're already loaded
     if (interventions.length > 0) {
       setInterventions(prev => prev.map(intervention => {
@@ -80,6 +80,7 @@ function App() {
       }));
     }
   }, [interventions]);
+
   const handleLoadData = useCallback(async () => {
     if (!csvFile) {
       alert('Please select a CSV file');
@@ -98,67 +99,59 @@ function App() {
         delimiter: ','
       });
 
-      const processedInterventions = await Promise.all(
-        parsedData.data
-          .filter(row => row['FOLIO No'] && row['FOLIO No'].trim() !== '')
-          .map(async (row, index) => {
-            const intervention = {
-              id: index,
-              originalRow: row,
-              folioNo: row['FOLIO No'],
-              region: row['NOMBRE DE LA REGION'],
-              municipio: row['MUNICIPIO PREDIO'],
-              predio: row['NOMBRE DEL PREDIO'],
-              beneficiario: row['BENEFICIARIO'],
-              plantDate: row['FEHA DE ENTREGA'],
-              superficie: row['SUPERFICIE FINAL'],
-              plantaEntregada: row[' PLANTA ENTREGADA '],
-              species: extractSpeciesFromRow(row),
-              geojsonFile: null,
-              geojsonData: null,
-              validation: validateIntervention(row),
-              edited: false
+      const processedInterventions = parsedData.data
+        .filter(row => row['FOLIO No'] && row['FOLIO No'].trim() !== '')
+        .map((row, index) => {
+          const folioNo = row['FOLIO No'];
+          const intervention = {
+            id: index,
+            originalRow: row,
+            folioNo: folioNo,
+            region: row['NOMBRE DE LA REGION'],
+            municipio: row['MUNICIPIO PREDIO'],
+            predio: row['NOMBRE DEL PREDIO'],
+            beneficiario: row['BENEFICIARIO'],
+            plantDate: row['FEHA DE ENTREGA'],
+            superficie: row['SUPERFICIE FINAL'],
+            plantaEntregada: row[' PLANTA ENTREGADA '],
+            species: extractSpeciesFromRow(row),
+            geojsonFile: null,
+            geojsonData: null,
+            validation: validateIntervention(row),
+            edited: false
+          };
+
+          // Check if we have GeoJSON data from the dynamically selected folder
+          const geojsonMatch = geojsonFiles.get(folioNo);
+          if (geojsonMatch) {
+            intervention.geojsonFile = geojsonMatch.file;
+            intervention.geojsonData = geojsonMatch.data;
+            intervention.validation = {
+              ...intervention.validation,
+              needsGeoJSON: false,
+              isValid: intervention.validation.errors.length === 0
             };
+          }
 
-            // Try to auto-load GeoJSON file from public folder
-            try {
-              const geojsonResponse = await fetch(`/location/folio_${row['FOLIO No']}.geojson`);
-              if (geojsonResponse.ok) {
-                const geojsonText = await geojsonResponse.text();
-                const geojsonData = JSON.parse(geojsonText);
-                intervention.geojsonData = geojsonData;
-                intervention.validation = {
-                  ...intervention.validation,
-                  needsGeoJSON: false,
-                  isValid: intervention.validation.errors.length === 0
-                };
-              }
-            } catch (error) {
-              // GeoJSON file not found or invalid, will need manual upload
-              console.log(`GeoJSON not found for ${row['FOLIO No']}: ${error.message}`);
-            }
-
-            return intervention;
-          })
-      );
+          return intervention;
+        });
 
       setInterventions(processedInterventions);
       setCurrentStep('data');
     } catch (error) {
       alert('Error parsing CSV: ' + error.message);
     }
-  }, [csvFile]);
-
+  }, [csvFile, geojsonFiles]);
   // Extract species data from CSV row
   const extractSpeciesFromRow = (row) => {
     const species = [];
     for (let i = 1; i <= 6; i++) {
       const speciesColumn = i === 1 ? "ESPECIE 1" : `ESPECIE ${i}`;
-      const quantityColumn = i === 1 ? "CANTIDAD" : `CANTIDAD_${i-1}`;
-      
+      const quantityColumn = i === 1 ? "CANTIDAD" : `CANTIDAD_${i - 1}`;
+
       const speciesName = row[speciesColumn];
       const quantity = row[quantityColumn];
-      
+
       if (speciesName && speciesName.trim() !== '') {
         const cleanQuantity = quantity ? parseInt(quantity.toString().replace(/,/g, '').trim(), 10) : 0;
         species.push({
@@ -174,13 +167,13 @@ function App() {
   // Validate intervention data
   const validateIntervention = (row) => {
     const errors = [];
-    
+
     // Check plant date
     const plantDate = row['FEHA DE ENTREGA'];
     if (!plantDate || !isValidDate(plantDate)) {
       errors.push('Invalid or missing plant date');
     }
-    
+
     // Check species
     const species = extractSpeciesFromRow(row);
     if (species.length === 0) {
@@ -191,7 +184,7 @@ function App() {
         errors.push(`${invalidSpecies.length} invalid species entries`);
       }
     }
-    
+
     return {
       isValid: errors.length === 0,
       errors,
@@ -204,7 +197,7 @@ function App() {
     if (!dateString) return false;
     const dateRegex = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
     if (!dateRegex.test(dateString.trim())) return false;
-    
+
     const [month, day, year] = dateString.trim().split('/').map(Number);
     const date = new Date(year, month - 1, day);
     return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
@@ -216,18 +209,18 @@ function App() {
     reader.onload = (e) => {
       try {
         const geojsonData = JSON.parse(e.target.result);
-        setInterventions(prev => prev.map(intervention => 
-          intervention.id === interventionId 
-            ? { 
-                ...intervention, 
-                geojsonFile: file,
-                geojsonData: geojsonData,
-                validation: { 
-                  ...intervention.validation, 
-                  needsGeoJSON: false,
-                  isValid: intervention.validation.errors.length === 0
-                }
+        setInterventions(prev => prev.map(intervention =>
+          intervention.id === interventionId
+            ? {
+              ...intervention,
+              geojsonFile: file,
+              geojsonData: geojsonData,
+              validation: {
+                ...intervention.validation,
+                needsGeoJSON: false,
+                isValid: intervention.validation.errors.length === 0
               }
+            }
             : intervention
         ));
       } catch (error) {
@@ -239,19 +232,19 @@ function App() {
 
   // Update intervention data
   const updateIntervention = useCallback((interventionId, updates) => {
-    setInterventions(prev => prev.map(intervention => 
-      intervention.id === interventionId 
-        ? { 
-            ...intervention, 
-            ...updates,
-            edited: true,
-            validation: validateIntervention({
-              ...intervention.originalRow,
-              'FEHA DE ENTREGA': updates.plantDate || intervention.plantDate,
-              // Update species in original row format for validation
-              ...(updates.species ? createRowFromSpecies(updates.species) : {})
-            })
-          }
+    setInterventions(prev => prev.map(intervention =>
+      intervention.id === interventionId
+        ? {
+          ...intervention,
+          ...updates,
+          edited: true,
+          validation: validateIntervention({
+            ...intervention.originalRow,
+            'FEHA DE ENTREGA': updates.plantDate || intervention.plantDate,
+            // Update species in original row format for validation
+            ...(updates.species ? createRowFromSpecies(updates.species) : {})
+          })
+        }
         : intervention
     ));
   }, []);
@@ -268,7 +261,7 @@ function App() {
       alert('No invalid interventions to delete');
       return;
     }
-    
+
     if (window.confirm(`Are you sure you want to delete all ${invalidCount} invalid interventions? This cannot be undone.`)) {
       setInterventions(prev => prev.filter(i => i.validation.isValid && !i.validation.needsGeoJSON));
     }
@@ -281,7 +274,7 @@ function App() {
       alert('No interventions missing GeoJSON to delete');
       return;
     }
-    
+
     if (window.confirm(`Are you sure you want to delete all ${missingCount} interventions missing GeoJSON files? This cannot be undone.`)) {
       setInterventions(prev => prev.filter(i => !i.validation.needsGeoJSON));
     }
@@ -344,23 +337,23 @@ function App() {
     if (!uploadResults) return;
 
     const zip = new JSZip();
-    
+
     // Add success log
     if (uploadResults.successLog.records.length > 0) {
       zip.file('success_log.json', JSON.stringify(uploadResults.successLog, null, 2));
     }
-    
+
     // Add error log
     if (uploadResults.errorLog.records.length > 0) {
       zip.file('error_log.json', JSON.stringify(uploadResults.errorLog, null, 2));
     }
-    
+
     // Add failed records CSV
     if (uploadResults.failedRecords.length > 0) {
       const csvContent = Papa.unparse(uploadResults.failedRecords.map(r => r.originalRow));
       zip.file('failed_records.csv', csvContent);
     }
-    
+
     // Add summary report
     const summary = {
       uploadDate: new Date().toISOString(),
@@ -423,13 +416,13 @@ function App() {
         {currentStep === 'data' && (
           <div className="space-y-6">
             <StatsPanel stats={stats} />
-            
+
             <div className="bg-white rounded-lg shadow-sm border p-6">
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 space-y-3 sm:space-y-0">
                 <h2 className="text-lg font-medium text-gray-900">
                   Review and Edit Intervention Data
                 </h2>
-                
+
                 <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
                   {/* Bulk Actions */}
                   {stats.invalid > 0 && (
@@ -437,11 +430,10 @@ function App() {
                       <button
                         onClick={deleteMissingGeoJSON}
                         disabled={stats.missingGeoJSON === 0}
-                        className={`px-3 py-2 text-xs font-medium rounded-md ${
-                          stats.missingGeoJSON > 0
-                            ? 'text-yellow-700 bg-yellow-100 hover:bg-yellow-200 border border-yellow-300'
-                            : 'text-gray-400 bg-gray-100 cursor-not-allowed'
-                        }`}
+                        className={`px-3 py-2 text-xs font-medium rounded-md ${stats.missingGeoJSON > 0
+                          ? 'text-yellow-700 bg-yellow-100 hover:bg-yellow-200 border border-yellow-300'
+                          : 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                          }`}
                         title="Delete all interventions missing GeoJSON files"
                       >
                         <Trash2 className="w-3 h-3 mr-1 inline" />
@@ -457,7 +449,7 @@ function App() {
                       </button>
                     </div>
                   )}
-                  
+
                   {/* Navigation */}
                   <div className="flex space-x-2">
                     <button
@@ -469,11 +461,10 @@ function App() {
                     <button
                       onClick={handleStartUpload}
                       disabled={!isReadyToUpload()}
-                      className={`px-4 py-2 text-sm font-medium rounded-md flex items-center ${
-                        isReadyToUpload()
-                          ? 'text-white bg-green-600 hover:bg-green-700'
-                          : 'text-gray-400 bg-gray-100 cursor-not-allowed'
-                      }`}
+                      className={`px-4 py-2 text-sm font-medium rounded-md flex items-center ${isReadyToUpload()
+                        ? 'text-white bg-green-600 hover:bg-green-700'
+                        : 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                        }`}
                     >
                       <Play className="w-4 h-4 mr-2" />
                       Start Upload ({stats.valid} ready)
@@ -481,7 +472,7 @@ function App() {
                   </div>
                 </div>
               </div>
-              
+
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {interventions.map((intervention) => (
                   <DataCard
@@ -492,7 +483,7 @@ function App() {
                     onDelete={deleteIntervention}
                   />
                 ))}
-                
+
                 {interventions.length === 0 && (
                   <div className="col-span-full text-center py-12">
                     <div className="text-gray-400 text-lg mb-2">No interventions loaded</div>
@@ -506,7 +497,7 @@ function App() {
 
         {/* Upload Progress Step */}
         {currentStep === 'upload' && (
-          <UploadProgress 
+          <UploadProgress
             progress={uploadProgress}
             isUploading={isUploading}
           />
@@ -517,7 +508,7 @@ function App() {
           <div className="space-y-6">
             <div className="bg-white rounded-lg shadow-sm border p-6">
               <h2 className="text-lg font-medium text-gray-900 mb-4">Upload Complete!</h2>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div className="bg-green-50 p-4 rounded-lg">
                   <div className="text-2xl font-bold text-green-600">
