@@ -99,22 +99,10 @@ class InterventionUploader {
   async uploadSingleIntervention(payload) {
     const headers = {
       'accept': '*/*',
-      'accept-language': 'en-US,en;q=0.9',
       'authorization': `Bearer ${this.config.bearerToken}`,
       'content-type': 'application/json',
-      'origin': 'https://dev.pp.eco',
-      'priority': 'u=1, i',
-      'referer': 'https://dev.pp.eco/',
-      'sec-ch-ua': '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"macOS"',
-      'sec-fetch-dest': 'empty',
-      'sec-fetch-mode': 'cors',
-      'sec-fetch-site': 'cross-site',
       'tenant-key': this.config.tenantKey,
-      'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
       'x-locale': 'en',
-      'x-session-id': '28c88e70-78c8-11f0-8f0d-e3203c7c83fe'
     };
 
     try {
@@ -138,7 +126,7 @@ class InterventionUploader {
       response: {
         id: response.id,
         hid: response.hid,
-        treesPlanted: response.treesPlanted,
+        treesPlanted: (response.plantedSpecies || []).reduce((sum, s) => sum + s.treeCount, 0),
         plantProject: response.plantProject,
         plantDate: response.plantDate,
         registrationDate: response.registrationDate

@@ -251,9 +251,9 @@ const ConfigurationPanel = ({
                   
                   <div className="mt-3 p-2 bg-white border border-blue-200 rounded">
                     <div className="text-blue-700 text-xs font-medium mb-1">Required Naming:</div>
-                    <code className="text-xs text-blue-800">folio_[FOLIO_NUMBER].geojson</code>
+                    <code className="text-xs text-blue-800">[NUMBER]_[BENEFICIARY_NAME].geojson</code>
                     <div className="text-blue-600 text-xs mt-1">
-                      Example: folio_PB2401001.geojson
+                      Example: 1_Santos Moo Pot - ECA BETANIA.geojson
                     </div>
                   </div>
                 </div>

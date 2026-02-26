@@ -10,6 +10,24 @@ import InterventionUploader from './components/InterventionUploader';
 import './App.css';
 
 
+const SPECIES_COLUMNS = [
+  'CAOBA (Sweitenia macrophylla)',
+  'CEDRO (Cedrela odorata)',
+  'KATALOSH (Swartzia cubensis)',
+  'KITINCHE (Caesalpinia gaumeri)',
+  'BALCHE (Lonchocarpus longystilus)',
+  'ZAPOTE (Manilkara zapota)',
+  'PICH (Enterolobium cyclocarpum)',
+  'RAMON (Brosimum alicastrum)',
+  'TINTO (Haematoxylum campechianum)',
+  'TZALAM (Lysiloma latisiliquum)',
+  'MACULIS (Tabebuia rosea)',
+  'PIXOY (Guazuma ulmifolia)',
+  'SILIL  (Diospyros tetrasperma)',
+  'CIRICOTE (Cordia dodecsandra)',
+  '(Terminaia oblonga)',
+];
+
 function App() {
   // Configuration State
   const [config, setConfig] = useState({
@@ -39,14 +57,14 @@ function App() {
     // Process all selected files
     for (const file of files) {
       if (file.name.endsWith('.geojson') || file.name.endsWith('.json')) {
-        // Extract folio number from filename (e.g., folio_PB2401001.geojson -> PB2401001)
-        const match = file.name.match(/folio_([^.]+)\.(geojson|json)$/i);
+        // Extract beneficiary name from filename (e.g., "1_Santos Moo Pot - ECA BETANIA.geojson" -> "Santos Moo Pot - ECA BETANIA")
+        const match = file.name.match(/^\d+_(.+)\.(geojson|json)$/i);
         if (match) {
-          const folioNo = match[1];
+          const beneficiary = match[1].trim();
           try {
             const text = await file.text();
             const geojsonData = JSON.parse(text);
-            geojsonFileMap.set(folioNo, {
+            geojsonFileMap.set(beneficiary, {
               file: file,
               data: geojsonData
             });
@@ -63,7 +81,7 @@ function App() {
     // Update interventions if they're already loaded
     if (interventions.length > 0) {
       setInterventions(prev => prev.map(intervention => {
-        const geojsonMatch = geojsonFileMap.get(intervention.folioNo);
+        const geojsonMatch = geojsonFileMap.get(intervention.folioNo.trim());
         if (geojsonMatch) {
           return {
             ...intervention,
@@ -100,20 +118,15 @@ function App() {
       });
 
       const processedInterventions = parsedData.data
-        .filter(row => row['FOLIO No'] && row['FOLIO No'].trim() !== '')
+        .filter(row => row['BENEFICIARIO'] && row['BENEFICIARIO'].trim() !== '')
         .map((row, index) => {
-          const folioNo = row['FOLIO No'];
+          const beneficiary = row['BENEFICIARIO'].trim();
           const intervention = {
             id: index,
             originalRow: row,
-            folioNo: folioNo,
-            region: row['NOMBRE DE LA REGION'],
-            municipio: row['MUNICIPIO PREDIO'],
-            predio: row['NOMBRE DEL PREDIO'],
-            beneficiario: row['BENEFICIARIO'],
-            plantDate: row['FEHA DE ENTREGA'],
-            superficie: row['SUPERFICIE FINAL'],
-            plantaEntregada: row[' PLANTA ENTREGADA '],
+            folioNo: beneficiary,
+            beneficiario: beneficiary,
+            plantDate: row['Fecha de plantación'],
             species: extractSpeciesFromRow(row),
             geojsonFile: null,
             geojsonData: null,
@@ -122,7 +135,7 @@ function App() {
           };
 
           // Check if we have GeoJSON data from the dynamically selected folder
-          const geojsonMatch = geojsonFiles.get(folioNo);
+          const geojsonMatch = geojsonFiles.get(beneficiary);
           if (geojsonMatch) {
             intervention.geojsonFile = geojsonMatch.file;
             intervention.geojsonData = geojsonMatch.data;
@@ -144,24 +157,13 @@ function App() {
   }, [csvFile, geojsonFiles]);
   // Extract species data from CSV row
   const extractSpeciesFromRow = (row) => {
-    const species = [];
-    for (let i = 1; i <= 6; i++) {
-      const speciesColumn = i === 1 ? "ESPECIE 1" : `ESPECIE ${i}`;
-      const quantityColumn = i === 1 ? "CANTIDAD" : `CANTIDAD_${i - 1}`;
-
-      const speciesName = row[speciesColumn];
-      const quantity = row[quantityColumn];
-
-      if (speciesName && speciesName.trim() !== '') {
-        const cleanQuantity = quantity ? parseInt(quantity.toString().replace(/,/g, '').trim(), 10) : 0;
-        species.push({
-          name: speciesName.trim(),
-          quantity: cleanQuantity,
-          valid: speciesName.trim() !== '' && cleanQuantity > 0
-        });
-      }
-    }
-    return species;
+    return SPECIES_COLUMNS
+      .map(col => ({
+        name: col,
+        quantity: parseInt(row[col]?.toString().replace(/,/g, '').trim() || '0', 10) || 0,
+      }))
+      .filter(s => s.quantity > 0)
+      .map(s => ({ ...s, valid: true }));
   };
 
   // Validate intervention data
@@ -169,7 +171,7 @@ function App() {
     const errors = [];
 
     // Check plant date
-    const plantDate = row['FEHA DE ENTREGA'];
+    const plantDate = row['Fecha de plantación'];
     if (!plantDate || !isValidDate(plantDate)) {
       errors.push('Invalid or missing plant date');
     }
@@ -240,7 +242,7 @@ function App() {
           edited: true,
           validation: validateIntervention({
             ...intervention.originalRow,
-            'FEHA DE ENTREGA': updates.plantDate || intervention.plantDate,
+            'Fecha de plantación': updates.plantDate || intervention.plantDate,
             // Update species in original row format for validation
             ...(updates.species ? createRowFromSpecies(updates.species) : {})
           })
@@ -283,13 +285,8 @@ function App() {
   // Create row format from species array for validation
   const createRowFromSpecies = (species) => {
     const row = {};
-    species.forEach((spec, index) => {
-      if (index < 6) {
-        const speciesColumn = index === 0 ? "ESPECIE 1" : `ESPECIE ${index + 1}`;
-        const quantityColumn = index === 0 ? "CANTIDAD" : `CANTIDAD_${index}`;
-        row[speciesColumn] = spec.name;
-        row[quantityColumn] = spec.quantity.toString();
-      }
+    species.forEach(spec => {
+      row[spec.name] = spec.quantity.toString();
     });
     return row;
   };

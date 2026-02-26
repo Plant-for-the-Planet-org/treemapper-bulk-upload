@@ -40,7 +40,7 @@ const DataCard = ({ intervention, onGeoJSONUpload, onUpdate, onDelete }) => {
   };
 
   const addSpecies = () => {
-    if (editData.species.length < 6) {
+    if (editData.species.length < 15) {
       setEditData({
         ...editData,
         species: [...editData.species, { name: '', quantity: 0, valid: false }]
@@ -137,10 +137,6 @@ const DataCard = ({ intervention, onGeoJSONUpload, onUpdate, onDelete }) => {
       {/* Basic Info */}
       <div className="space-y-2 mb-4">
         <div className="text-sm">
-          <span className="font-medium text-gray-700">Region:</span>
-          <span className="text-gray-600 ml-1">{intervention.region}</span>
-        </div>
-        <div className="text-sm">
           <span className="font-medium text-gray-700">Beneficiary:</span>
           <span className="text-gray-600 ml-1">{intervention.beneficiario}</span>
         </div>
@@ -170,7 +166,7 @@ const DataCard = ({ intervention, onGeoJSONUpload, onUpdate, onDelete }) => {
           <label className="block text-sm font-medium text-gray-700">
             Species ({isEditing ? editData.species.length : intervention.species.length})
           </label>
-          {isEditing && editData.species.length < 6 && (
+          {isEditing && editData.species.length < 15 && (
             <button
               onClick={addSpecies}
               className="text-blue-600 hover:text-blue-700 text-sm flex items-center"
@@ -244,7 +240,7 @@ const DataCard = ({ intervention, onGeoJSONUpload, onUpdate, onDelete }) => {
           <div className="flex items-center space-x-2">
             <CheckCircle className="w-4 h-4 text-green-500" />
             <span className="text-sm text-green-700">
-              {intervention.geojsonFile?.name || `folio_${intervention.folioNo}.geojson`}
+              {intervention.geojsonFile?.name || `${intervention.folioNo}.geojson`}
             </span>
           </div>
         ) : (
@@ -252,7 +248,7 @@ const DataCard = ({ intervention, onGeoJSONUpload, onUpdate, onDelete }) => {
             <div className="flex items-center space-x-2">
               <XCircle className="w-4 h-4 text-red-500" />
               <span className="text-sm text-red-700">
-                Missing: folio_{intervention.folioNo}.geojson
+                Missing GeoJSON for: {intervention.folioNo}
               </span>
             </div>
             <label className="block">
